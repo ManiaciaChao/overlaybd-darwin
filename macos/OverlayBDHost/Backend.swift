@@ -435,22 +435,16 @@ class Backend {
                                                attributes: [.posixPermissions: 0o700])
         var args = ["device", "mount", String(deviceID), "--mountpoint", point.path]
         if nobrowse { args.append("--nobrowse") }
-        _ = try await cli(args)
+        let mounted = try await value(DeviceVolume.self, args)
         if let label {
-            // Only rename the volume observed on this image's managed device at
-            // the exact requested mountpoint; never infer a disk from its name.
-            let records = try await value([DeviceRecord].self, ["device", "status", String(deviceID)])
-            guard let record = records.first(where: { $0.dev_id == deviceID && $0.image == image }),
-                  let mounted = record.observed?.volumes?.first(where: {
-                      guard let path = $0.mountpoint, !path.isEmpty else { return false }
-                      // URL equality includes the directory hint (trailing slash).
-                      // A URL built before mounting can retain a different hint
-                      // from diskutil's URL for the same mounted volume root.
-                      return URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
-                          == point.resolvingSymlinksInPath().standardizedFileURL.path
-                  }), let mountedPath = mounted.mountpoint else {
+            // The controller already verified this reply against the managed RAW
+            // attachment and selected volume. Reuse it rather than rescan all disks.
+            guard let mountedPath = mounted.mountpoint, !mountedPath.isEmpty,
+                  URL(fileURLWithPath: mountedPath).resolvingSymlinksInPath().standardizedFileURL.path
+                    == point.resolvingSymlinksInPath().standardizedFileURL.path else {
                 throw CommandFailure(message: L10n.tr("The image is mounted, but its mount location could not be verified. The volume name has not been changed."))
             }
+            if mounted.name == label { return }
             do { try await renameVolume(at: URL(fileURLWithPath: mountedPath), to: label) }
             catch { throw CommandFailure(message: L10n.tr("The image is mounted, but its volume name could not be updated: %@", String(describing: error.localizedDescription))) }
         }

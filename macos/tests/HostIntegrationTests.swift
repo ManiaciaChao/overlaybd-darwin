@@ -5,7 +5,8 @@ import Darwin
 struct HostIntegrationTests {
     @MainActor static func main() async throws {
         let repo = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let tools = repo.appendingPathComponent("macos/build/distribution/OverlayBDHost.app/Contents/Helpers")
+        let tools = ProcessInfo.processInfo.environment["OBD_TEST_TOOLS"].map { URL(fileURLWithPath: $0) }
+            ?? repo.appendingPathComponent("macos/build/distribution/OverlayBDHost.app/Contents/Helpers")
         let home = URL(fileURLWithPath: "/private/tmp").appendingPathComponent("obd-gui-" + UUID().uuidString)
         let backend = Backend(home: home, tools: tools)
         print("Test artifacts: \(home.path)"); fflush(stdout)

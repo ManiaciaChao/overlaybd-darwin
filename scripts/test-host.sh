@@ -17,6 +17,11 @@ xcrun swiftc -target arm64-apple-macos26.0 -module-cache-path macos/build/module
     macos/tests/HostStartupTests.swift -o macos/build/host-startup-tests
 macos/build/host-startup-tests
 xcrun swiftc -target arm64-apple-macos26.0 -module-cache-path macos/build/module-cache \
+    -parse-as-library macos/OverlayBDHost/Localization.swift macos/OverlayBDHost/Backend.swift \
+    macos/OverlayBDHost/LayerGraph.swift macos/OverlayBDHost/LibraryModel.swift \
+    macos/tests/HostRefreshTests.swift -o macos/build/host-refresh-tests
+macos/build/host-refresh-tests
+xcrun swiftc -target arm64-apple-macos26.0 -module-cache-path macos/build/module-cache \
     -parse-as-library macos/OverlayBDHost/Localization.swift macos/OverlayBDHost/Backend.swift macos/OverlayBDHost/LayerGraph.swift \
     macos/tests/HostGraphTests.swift -o macos/build/host-graph-tests
 macos/build/host-graph-tests

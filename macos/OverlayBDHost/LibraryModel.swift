@@ -75,6 +75,8 @@ final class LibraryModel: ObservableObject {
     let backend: Backend
     private var checking = false
     private var refreshing = false
+    private var usageGeneration: UInt64 = 0
+    private var usageTask: Task<Void, Never>?
     private var notesLoaded = false
     private var bootstrapping = false
     private var restoredMounts = false
@@ -163,10 +165,15 @@ final class LibraryModel: ObservableObject {
         await restoreMountsIfNeeded()
         if !extensionEnabled && selected == nil { page = .setup }
     }
-    func refresh() async {
+    func refresh(waitForUsage: Bool = true) async {
         guard serviceReady, !refreshing else { return }
         refreshing = true
-        defer { refreshing = false }
+        usageGeneration &+= 1
+        let generation = usageGeneration
+        usageTask?.cancel()
+        usageTask = nil
+        samplingUsage = false
+        defer { if usageGeneration == generation { refreshing = false } }
         do {
             let newImages = try await backend.value([DiskImage].self, ["image", "list"])
             let newSnapshots = try await backend.value([DiskSnapshot].self, ["snapshot", "list"])
@@ -174,23 +181,40 @@ final class LibraryModel: ObservableObject {
             images = newImages; snapshots = newSnapshots; devices = newDevices
             layerGraph = LayerGraph(images: newImages, snapshots: newSnapshots)
             if let id = selected, !images.contains(where: { $0.id == id }) { selected = nil }
+            let objects = Set(newImages.map { GraphObject.image($0.id) } + newSnapshots.map { GraphObject.snapshot($0.id) })
+            objectUsage = objectUsage.filter { objects.contains($0.key) }
+            usage = usage.filter { id, _ in newImages.contains { $0.id == id } }
             samplingUsage = true
-            defer { samplingUsage = false }
-            var samples: [GraphObject: SpaceUsage] = [:]
-            for image in newImages {
-                samples[.image(image.id)] = try? await backend.value(SpaceUsage.self, ["image", "usage", image.id])
+            let task = Task<Void, Never> { [weak self] in
+                guard let self else { return }
+                await self.sampleUsage(images: newImages, snapshots: newSnapshots, generation: generation)
             }
-            for snapshot in newSnapshots {
-                samples[.snapshot(snapshot.id)] = try? await backend.value(SpaceUsage.self, ["snapshot", "stat", snapshot.id])
-            }
-            objectUsage = samples
-            usage = Dictionary(uniqueKeysWithValues: newImages.compactMap { image in
-                samples[.image(image.id)].map { (image.id, $0) }
-            })
+            usageTask = task
+            refreshing = false
+            if waitForUsage { await task.value }
         } catch {
             serviceReady = false
             failure = error.localizedDescription
         }
+    }
+    private func sampleUsage(images: [DiskImage], snapshots: [DiskSnapshot], generation: UInt64) async {
+        defer {
+            if usageGeneration == generation { samplingUsage = false; usageTask = nil }
+        }
+        var samples: [GraphObject: SpaceUsage] = [:]
+        for image in images {
+            guard !Task.isCancelled else { return }
+            samples[.image(image.id)] = try? await backend.value(SpaceUsage.self, ["image", "usage", image.id])
+        }
+        for snapshot in snapshots {
+            guard !Task.isCancelled else { return }
+            samples[.snapshot(snapshot.id)] = try? await backend.value(SpaceUsage.self, ["snapshot", "stat", snapshot.id])
+        }
+        guard !Task.isCancelled, usageGeneration == generation else { return }
+        objectUsage = samples
+        usage = Dictionary(uniqueKeysWithValues: images.compactMap { image in
+            samples[.image(image.id)].map { (image.id, $0) }
+        })
     }
     func loadNotes() throws {
         guard !notesLoaded else { return }
@@ -297,7 +321,7 @@ final class LibraryModel: ObservableObject {
         busy = title; failure = nil; notice = nil
         Task {
             do { try await operation() } catch { failure = error.localizedDescription }
-            await refresh()
+            await refresh(waitForUsage: false)
             busy = nil
         }
     }
@@ -474,6 +498,7 @@ final class LibraryModel: ObservableObject {
     }
     func prepareToQuit() async -> Bool {
         guard busy == nil else { failure = L10n.tr("An operation is still in progress. Wait before quitting."); return false }
+        usageTask?.cancel()
         busy = L10n.tr("Unmounting safely and quitting…")
         defer { busy = nil }
         do {

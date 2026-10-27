@@ -22,6 +22,7 @@ cargo test --locked --workspace
 | `HostBackendTests.swift` | CLI launcher protection, capacity and system-reserve boundaries, volume detection, formatting ownership checks, malformed observations, and process output handling | Synthetic device information and test subprocesses; no `/dev` access |
 | `HostStartupTests.swift` | Permission gates, restore intent, failure isolation, safe shutdown, quick branching, mount naming, legacy origins, and space checks before creation | Mock backend; no login-item registration, mounts, or user-library changes |
 | `HostGraphTests.swift` | Layer relationships, branches and snapshot aliases, navigation, long-chain folding, and shared-space deduplication | Synthetic in-memory graphs; no store operations |
+| `HostRefreshTests.swift` | Operations finish independently of delayed space sampling; cancelled and stale samples cannot replace current state | In-memory delayed backend; no store, mounts, or user preference changes |
 
 Version rejection, invalid credentials, path escapes, and read-only enforcement
 remain part of the regression suite. Fixture URLs use example.com, invalid test

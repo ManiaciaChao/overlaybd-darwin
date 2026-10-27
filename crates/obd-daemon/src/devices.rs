@@ -190,9 +190,15 @@ fn partition_of(identifier: &str, disk: &str) -> bool {
 }
 async fn volumes(record: &Value) -> Result<Vec<Value>> {
     let observed = observe(record).await?;
-    let device = text(&observed, "device_path")?;
+    volumes_for_device(text(&observed, "device_path")?).await
+}
+async fn volumes_for_device(device: &str) -> Result<Vec<Value>> {
     let disk = device.strip_prefix("/dev/").context("disk identifier")?;
-    let listing = plist("/usr/sbin/diskutil", &["list", "-plist", device]).await?;
+    let list_args = ["list", "-plist", device];
+    let (listing, apfs) = tokio::try_join!(
+        plist("/usr/sbin/diskutil", &list_args),
+        plist("/usr/sbin/diskutil", &["apfs", "list", "-plist"]),
+    )?;
     let mut candidates = std::collections::BTreeSet::new();
     candidates.insert(disk.to_owned());
     for entry in listing["AllDisksAndPartitions"]
@@ -209,7 +215,6 @@ async fn volumes(record: &Value) -> Result<Vec<Value>> {
             }
         }
     }
-    let apfs = plist("/usr/sbin/diskutil", &["apfs", "list", "-plist"]).await?;
     for container in apfs["Containers"].as_array().into_iter().flatten() {
         let stores: Vec<_> = container["PhysicalStores"]
             .as_array()
@@ -230,16 +235,52 @@ async fn volumes(record: &Value) -> Result<Vec<Value>> {
             }
         }
     }
+    // Bound the number of concurrent diskutil processes for large containers.
+    let mut pending = candidates.into_iter();
+    let mut queries = tokio::task::JoinSet::new();
     let mut result = Vec::new();
-    for id in candidates {
-        let v = plist("/usr/sbin/diskutil", &["info", "-plist", &id]).await?;
-        if !v["FilesystemType"].is_string() {
-            continue;
+    loop {
+        while queries.len() < 4 {
+            let Some(id) = pending.next() else { break };
+            queries.spawn(async move {
+                let info = plist("/usr/sbin/diskutil", &["info", "-plist", &id]).await?;
+                Ok::<_, anyhow::Error>((id, info))
+            });
         }
-        result.push(json!({"device_path":format!("/dev/{id}"),"uuid":v["VolumeUUID"],"name":v["VolumeName"],"partition_content":v["Content"],
-            "filesystem":v["FilesystemType"],"mountpoint":v["MountPoint"],"read_only":v["ReadOnlyVolume"]}));
+        let Some(reply) = queries.join_next().await else {
+            break;
+        };
+        let (id, info) = reply??;
+        if info["FilesystemType"].is_string() {
+            result.push(volume_info(&id, &info));
+        }
     }
+    result.sort_by(|a, b| a["device_path"].as_str().cmp(&b["device_path"].as_str()));
     Ok(result)
+}
+fn volume_info(id: &str, info: &Value) -> Value {
+    json!({"device_path":format!("/dev/{id}"),"uuid":info["VolumeUUID"],"name":info["VolumeName"],
+        "partition_content":info["Content"],"filesystem":info["FilesystemType"],
+        "mountpoint":info["MountPoint"],"read_only":info["ReadOnlyVolume"]})
+}
+fn volume_belongs_to(info: &Value, disk: &str) -> bool {
+    if info["DeviceIdentifier"]
+        .as_str()
+        .is_some_and(|id| partition_of(id, disk))
+    {
+        return true;
+    }
+    // APFS volumes live on synthesized disks. Verify their physical stores,
+    // rather than trusting a volume name, UUID, or reused disk number.
+    info["FilesystemType"] == "apfs"
+        && info["APFSPhysicalStores"].as_array().is_some_and(|stores| {
+            !stores.is_empty()
+                && stores.iter().all(|store| {
+                    store["APFSPhysicalStore"]
+                        .as_str()
+                        .is_some_and(|id| partition_of(id, disk))
+                })
+        })
 }
 fn select_volume<'a>(list: &'a [Value], selector: Option<&str>) -> Result<&'a Value> {
     let matches: Vec<_> = list
@@ -398,8 +439,25 @@ pub async fn execute(store: Arc<Mutex<Store>>, op: Operation) -> Result<Value> {
                 }
                 args.extend(["-mountPoint", point, device]);
                 run("/usr/sbin/diskutil", &args).await?;
-                let after = volumes(&record).await?;
-                let mounted = select_volume(&after, Some(device))?.clone();
+                // Revalidate the RAW attachment and the selected mounted volume
+                // directly. A second full partition/container scan is unnecessary.
+                let info_args = ["info", "-plist", device];
+                let (observed, info) =
+                    tokio::try_join!(observe(&record), plist("/usr/sbin/diskutil", &info_args),)?;
+                let disk = text(&observed, "device_path")?
+                    .strip_prefix("/dev/")
+                    .context("disk identifier")?;
+                let id = device.strip_prefix("/dev/").context("volume identifier")?;
+                ensure!(
+                    info["DeviceIdentifier"] == id && volume_belongs_to(&info, disk),
+                    "mounted volume ownership changed"
+                );
+                let mounted = volume_info(id, &info);
+                ensure!(
+                    mounted["uuid"] == selected["uuid"]
+                        && mounted["filesystem"] == selected["filesystem"],
+                    "mounted volume identity changed"
+                );
                 ensure!(
                     mounted["mountpoint"] == point,
                     "mount did not reach requested path"
@@ -463,7 +521,8 @@ pub async fn execute(store: Arc<Mutex<Store>>, op: Operation) -> Result<Value> {
                 record["observed"] = match observe(&record).await {
                     Ok(mut v) => {
                         if v["device_path"].is_string() {
-                            v["volumes"] = match volumes(&record).await {
+                            v["volumes"] = match volumes_for_device(text(&v, "device_path")?).await
+                            {
                                 Ok(v) => json!(v),
                                 Err(e) => json!({"error":format!("{e:#}")}),
                             };
@@ -665,6 +724,28 @@ mod tests {
         let ordinary_fat = json!({"uuid":"other","device_path":"/dev/disk4s3",
             "filesystem":"msdos","partition_content":"Microsoft Basic Data","name":"EFI"});
         assert!(select_volume(&[data, ordinary_fat], None).is_err());
+    }
+    #[test]
+    fn mounted_volume_requires_matching_physical_storage() {
+        let mut apfs = json!({"DeviceIdentifier":"disk5s1", "FilesystemType":"apfs",
+            "APFSPhysicalStores":[{"APFSPhysicalStore":"disk4s2"}]});
+        assert!(volume_belongs_to(&apfs, "disk4"));
+        assert!(!volume_belongs_to(&apfs, "disk40"));
+        apfs["APFSPhysicalStores"] = json!([]);
+        assert!(!volume_belongs_to(&apfs, "disk4"));
+        apfs["APFSPhysicalStores"] =
+            json!([{"APFSPhysicalStore":"disk4s2"},{"APFSPhysicalStore":"disk7s2"}]);
+        assert!(!volume_belongs_to(&apfs, "disk4"));
+        apfs["APFSPhysicalStores"] = Value::Null;
+        assert!(!volume_belongs_to(&apfs, "disk4"));
+        assert!(volume_belongs_to(
+            &json!({"DeviceIdentifier":"disk4s1", "FilesystemType":"hfs"}),
+            "disk4"
+        ));
+        assert!(!volume_belongs_to(
+            &json!({"DeviceIdentifier":"disk40s1", "FilesystemType":"hfs"}),
+            "disk4"
+        ));
     }
     #[test]
     fn only_whole_disks() {

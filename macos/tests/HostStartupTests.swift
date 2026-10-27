@@ -14,6 +14,7 @@ final class StartupBackend: Backend {
     var renames: [(URL, String)] = []
     var forkFails = false
     var snapshotFails = false
+    var mountReplyOverride: [String: Any]?
     override func renameVolume(at point: URL, to name: String) async throws {
         renames.append((point, name))
     }
@@ -56,8 +57,9 @@ final class StartupBackend: Backend {
             if failAllMounts || failMounts.contains(records[index]["image"] as! String) {
                 throw CommandFailure(message: "mount failed")
             }
-            records[index]["observed"] = ["device_path": "/dev/test", "volumes": [["device_path": "/dev/testvol", "mountpoint": args[4]]]]
-            result = [:] as [String: String]
+            let volume: [String: Any] = ["device_path": "/dev/testvol", "mountpoint": args[4]]
+            records[index]["observed"] = ["device_path": "/dev/test", "volumes": [volume]]
+            result = mountReplyOverride ?? volume
         case ["device", "delete"]:
             records.removeAll { $0["dev_id"] as? Int == Int(args[2]) }
             result = [:] as [String: String]
@@ -266,6 +268,21 @@ struct HostStartupTests {
         while forking.busy != nil { try await Task.sleep(for: .milliseconds(10)) }
         precondition(forking.failure == "image is in use")
         precondition(forking.notes.images[retainedBranch] != nil && forking.selected == "b")
-        print("PASS: quick fork offline/live/existing snapshot, distinct mount and volume names, failure isolation; legacy preferences, permission gate, mount restoration, failure isolation, unique device IDs, once-per-launch restore, safe quit persistence, stale/already-mounted devices, manual detach")
+        let receiptBackend = StartupBackend(home: home.appendingPathComponent("receipts"))
+        try await receiptBackend.start()
+        try await receiptBackend.mount("a", deviceID: 1, displayName: "A")
+        precondition(receiptBackend.renames.count == 1)
+        precondition(!receiptBackend.calls.contains { $0.starts(with: ["device", "status"]) }, "mount must reuse the controller's verified receipt")
+        let point = receiptBackend.home.appendingPathComponent("Volumes").appendingPathComponent(MountNaming.name(image: "a", displayName: "A"))
+        receiptBackend.mountReplyOverride = ["device_path": "/dev/testvol", "mountpoint": point.path, "name": "A"]
+        try await receiptBackend.mount("a", deviceID: 1, displayName: "A")
+        precondition(receiptBackend.renames.count == 1, "an unchanged name must not invoke diskutil")
+        receiptBackend.mountReplyOverride = ["device_path": "/dev/testvol", "mountpoint": "/unrelated"]
+        do {
+            try await receiptBackend.mount("a", deviceID: 1, displayName: "A")
+            fatalError("unrelated mount receipt accepted")
+        } catch { }
+        precondition(receiptBackend.renames.count == 1, "unexpected mount locations must never be renamed")
+        print("PASS: verified mount receipts, unchanged names, unrelated path rejection; quick fork offline/live/existing snapshot, distinct mount and volume names, failure isolation; legacy preferences, permission gate, mount restoration, failure isolation, unique device IDs, once-per-launch restore, safe quit persistence, stale/already-mounted devices, manual detach")
     }
 }

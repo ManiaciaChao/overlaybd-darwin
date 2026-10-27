@@ -275,7 +275,7 @@
 				<key>ARCHS</key>
 				<string>arm64</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>8</string>
+				<string>9</string>
 				<key>OTHER_SWIFT_FLAGS</key>
 				<array>
 					<string>$(inherited)</string>
@@ -364,7 +364,7 @@
 				<key>ARCHS</key>
 				<string>arm64</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>8</string>
+				<string>9</string>
 				<key>OTHER_SWIFT_FLAGS</key>
 				<array>
 					<string>$(inherited)</string>
@@ -631,7 +631,7 @@
 				<key>ARCHS</key>
 				<string>arm64</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>8</string>
+				<string>9</string>
 				<key>OTHER_SWIFT_FLAGS</key>
 				<array>
 					<string>$(inherited)</string>
@@ -705,7 +705,7 @@
 				<key>ARCHS</key>
 				<string>arm64</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>8</string>
+				<string>9</string>
 				<key>OTHER_SWIFT_FLAGS</key>
 				<array>
 					<string>$(inherited)</string>
