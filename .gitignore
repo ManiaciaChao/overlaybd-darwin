@@ -1,0 +1,17 @@
+/target/
+/.state/
+/macos/build/
+*.sock
+.DS_Store
+__pycache__/
+*.xcuserstate
+xcuserdata/
+# Local regression outputs and disk fixtures.
+/tests/**/results/
+/tests/**/*-result.json
+/tests/**/result.json
+/tests/**/__pycache__/
+*.profraw
+
+# Local icon concepts and compiled previews; AppIcon.icon is the release source.
+/macos/Artwork/

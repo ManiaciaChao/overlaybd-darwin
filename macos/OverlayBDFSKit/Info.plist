@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>OverlayBDFSKit</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.overlaybd.mac.RawFS</string>
+	<key>CFBundleName</key>
+	<string>OverlayBD RAW PoC</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>8</string>
+	<key>EXAppExtensionAttributes</key>
+	<dict>
+		<key>EXExtensionPointIdentifier</key>
+		<string>com.apple.fskit.fsmodule</string>
+		<key>FSActivateOptionSyntax</key>
+		<dict>
+			<key>shortOptions</key>
+			<string>o:</string>
+		</dict>
+		<key>FSMediaTypes</key>
+		<dict/>
+		<key>FSPersonalities</key>
+		<dict/>
+		<key>FSRequiresSecurityScopedPathURLResources</key>
+		<true/>
+		<key>FSShortName</key>
+		<string>obdraw</string>
+		<key>FSSupportsBlockResources</key>
+		<false/>
+		<key>FSSupportsPathURLs</key>
+		<true/>
+	</dict>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+</dict>
+</plist>

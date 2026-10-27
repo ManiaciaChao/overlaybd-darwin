@@ -1,0 +1,44 @@
+Third-party software notices
+
+OverlayBD for macOS is an independent macOS integration. It includes and depends
+on third-party software; upstream project names, copyrights and licenses remain
+with their respective owners. This project does not claim upstream endorsement.
+
+AgentENV (pinned Git submodule)
+  Source: https://github.com/kvcache-ai/AgentENV
+  Revision: bc51e699421fdf67865665f36269b66a1ffac479
+  License: MIT, as provided by vendor/agentenv/LICENSE.
+  This root license is the evidence for the upstream overlaybd, storage-util and
+  object-store-operator crates, whose Cargo manifests omit a license field.
+  The integration does not alter that upstream license or remove its notices.
+
+Rust dependency inventory and per-package evidence:
+  docs/dependency-licenses.json
+  licenses/third-party/<crate>-<version>/
+  The inventory is generated for the locked aarch64-apple-darwin dependency graph,
+  including build/test dependencies. Cargo package versions and original license
+  texts are preserved; the list is not a statement that every package is shipped
+  in every binary or that it covers every future build configuration.
+
+AgentENV license text:
+MIT License
+
+Copyright (c) 2026 AgentENV
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,0 +1,19 @@
+[package]
+name = "obd-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+obd-runtime.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+libc.workspace = true
+uuid.workspace = true
+obd-core-adapter.workspace = true
+rusqlite = { version = "0.38", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile.workspace = true
