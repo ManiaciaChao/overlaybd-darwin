@@ -1,4 +1,7 @@
 // OverlayBD interface translations. English keys are the fallback text.
+"Automatically restore disks after login" = "Automatically restore disks after login";
+"Mounted images are restored when you open OverlayBD by default. Select this option to also launch OverlayBD at login. Manually unmounted images stay unmounted." = "Mounted images are restored when you open OverlayBD by default. Select this option to also launch OverlayBD at login. Manually unmounted images stay unmounted.";
+"Unable to complete startup setup: %@" = "Unable to complete startup setup: %@";
 "%@: %@" = "%@: %@";
 "%@ Branch" = "%@ Branch";
 "%@ Branch %@" = "%@ Branch %@";

@@ -19,21 +19,39 @@ struct LibraryNotes: Codable {
     var images: [String: ImageNote] = [:]
     var snapshots: [String: SnapshotNote] = [:]
     var nobrowse = false
-    var restoreMounts = false
+    var restoreMounts = true
+    var startupChoiceCompleted = false
     var mountedImages: Set<String> = []
 
     init() {}
-    private enum CodingKeys: String, CodingKey { case images, snapshots, restoreMounts, mountedImages, nobrowse }
+    private enum CodingKeys: String, CodingKey { case images, snapshots, restoreMounts, mountedImages, nobrowse, startupChoiceCompleted }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         images = try c.decodeIfPresent([String: ImageNote].self, forKey: .images) ?? [:]
         snapshots = try c.decodeIfPresent([String: SnapshotNote].self, forKey: .snapshots) ?? [:]
         nobrowse = try c.decodeIfPresent(Bool.self, forKey: .nobrowse) ?? false
         restoreMounts = try c.decodeIfPresent(Bool.self, forKey: .restoreMounts) ?? false
+        // Existing libraries retain their previous defaults and skip the new
+        // first-run choice. Fresh libraries use the property defaults above.
+        startupChoiceCompleted = try c.decodeIfPresent(Bool.self, forKey: .startupChoiceCompleted) ?? true
         mountedImages = try c.decodeIfPresent(Set<String>.self, forKey: .mountedImages) ?? []
     }
 }
 enum LibraryPage: Hashable { case images, setup, settings }
+
+@MainActor
+protocol LoginItemManaging {
+    var status: SMAppService.Status { get }
+    func setEnabled(_ enabled: Bool) throws
+}
+
+struct SystemLoginItem: LoginItemManaging {
+    var status: SMAppService.Status { SMAppService.mainApp.status }
+    func setEnabled(_ enabled: Bool) throws {
+        if enabled { try SMAppService.mainApp.register() }
+        else { try SMAppService.mainApp.unregister() }
+    }
+}
 enum EditorKind: String, Identifiable {
     case create, localImport, remoteImport, snapshot, branch
     var id: String { rawValue }
@@ -71,8 +89,9 @@ final class LibraryModel: ObservableObject {
     @Published var notes = LibraryNotes()
     @Published var notice: String?
     @Published var cliShimInstalled = false
-    @Published var loginStatus = SMAppService.mainApp.status
+    @Published var loginStatus: SMAppService.Status
     let backend: Backend
+    private let loginItem: LoginItemManaging
     private var checking = false
     private var refreshing = false
     private var usageGeneration: UInt64 = 0
@@ -80,8 +99,10 @@ final class LibraryModel: ObservableObject {
     private var notesLoaded = false
     private var bootstrapping = false
     private var restoredMounts = false
-    init(backend: Backend? = nil) {
+    init(backend: Backend? = nil, loginItem: LoginItemManaging? = nil) {
         self.backend = backend ?? Backend()
+        self.loginItem = loginItem ?? SystemLoginItem()
+        loginStatus = self.loginItem.status
         cliShimInstalled = self.backend.cliShim.isInstalled
     }
     var canOperate: Bool { extensionEnabled && serviceReady && busy == nil }
@@ -148,7 +169,7 @@ final class LibraryModel: ObservableObject {
         guard !bootstrapping else { return }
         bootstrapping = true
         defer { bootstrapping = false }
-        loginStatus = SMAppService.mainApp.status
+        loginStatus = loginItem.status
         do { try backend.cliShim.refreshIfInstalled() }
         catch { failure = L10n.tr("Unable to update the obd command-line launcher: %@", String(describing: error.localizedDescription)) }
         cliShimInstalled = backend.cliShim.isInstalled
@@ -229,13 +250,39 @@ final class LibraryModel: ObservableObject {
     }
     var launchAtLogin: Bool { loginStatus == .enabled || loginStatus == .requiresApproval }
     var startupSettingsReady: Bool { notesLoaded && serviceReady && busy == nil }
+    var needsStartupChoice: Bool { notesLoaded && !notes.startupChoiceCompleted }
+    func completeSetup(restoreAtLogin: Bool) {
+        guard startupSettingsReady, extensionEnabled else { return }
+        guard needsStartupChoice else { page = .images; return }
+        failure = nil
+        let previous = notes
+        var preferencesSaved = false
+        defer { loginStatus = loginItem.status }
+        do {
+            if restoreAtLogin && !notes.restoreMounts {
+                notes.restoreMounts = true
+                notes.mountedImages = Set(devices.filter { $0.mountpoint != nil }.map(\.image))
+            }
+            // Keep the choice pending on disk until the opt-in registration has
+            // succeeded. Merely opening or refreshing setup never registers it.
+            try saveNotes()
+            preferencesSaved = true
+            if restoreAtLogin && !launchAtLogin { try loginItem.setEnabled(true) }
+            notes.startupChoiceCompleted = true
+            try saveNotes()
+            page = restoreAtLogin && loginItem.status == .requiresApproval ? .settings : .images
+        } catch {
+            if preferencesSaved { notes.startupChoiceCompleted = false }
+            else { notes = previous }
+            failure = L10n.tr("Unable to complete startup setup: %@", error.localizedDescription)
+        }
+    }
     func setLaunchAtLogin(_ enabled: Bool) {
         guard busy == nil else { return }
         do {
-            if enabled { try SMAppService.mainApp.register() }
-            else { try SMAppService.mainApp.unregister() }
+            try loginItem.setEnabled(enabled)
         } catch { failure = L10n.tr("Unable to update launch at login: %@", String(describing: error.localizedDescription)) }
-        loginStatus = SMAppService.mainApp.status
+        loginStatus = loginItem.status
     }
     func setCLIShim(_ enabled: Bool) {
         guard busy == nil else { return }

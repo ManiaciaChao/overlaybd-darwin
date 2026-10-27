@@ -1,4 +1,7 @@
 // OverlayBD interface translations. English keys are the fallback text.
+"Automatically restore disks after login" = "登录后自动恢复磁盘";
+"Mounted images are restored when you open OverlayBD by default. Select this option to also launch OverlayBD at login. Manually unmounted images stay unmounted." = "默认在打开 OverlayBD 时恢复上次挂载的镜像。选中此项后，还会在登录时启动 OverlayBD。手动卸载的镜像不会恢复挂载。";
+"Unable to complete startup setup: %@" = "无法完成启动设置：%@";
 "%@: %@" = "%@：%@";
 "%@ Branch" = "%@ 分支";
 "%@ Branch %@" = "%@ 分支 %@";

@@ -20,7 +20,7 @@ cargo test --locked --workspace
 | `crates/*/tests` and Rust unit tests | Block I/O, isolation, snapshots, leases, persistence, and crash boundaries | Private temporary directories and local sockets; fault injection terminates only test-owned daemons |
 | `macos/tests/RawVolumeTests.m` | FSKit callbacks, boundaries, read-only access, and sync errors | Direct callback calls; no disk mounts |
 | `HostBackendTests.swift` | CLI launcher protection, capacity and system-reserve boundaries, volume detection, formatting ownership checks, malformed observations, and process output handling | Synthetic device information and test subprocesses; no `/dev` access |
-| `HostStartupTests.swift` | Permission gates, restore intent, failure isolation, safe shutdown, quick branching, mount naming, legacy origins, and space checks before creation | Mock backend; no login-item registration, mounts, or user-library changes |
+| `HostStartupTests.swift` | New-user restore defaults, opt-in login startup, permission gates, approval and retry handling, preserved legacy settings, restore intent, failure isolation, safe shutdown, quick branching, mount naming, legacy origins, and space checks before creation | Mock backend and login-item controller; no login-item registration, mounts, or user-library changes |
 | `HostGraphTests.swift` | Layer relationships, branches and snapshot aliases, navigation, long-chain folding, and shared-space deduplication | Synthetic in-memory graphs; no store operations |
 | `HostRefreshTests.swift` | Operations finish independently of delayed space sampling; cancelled and stale samples cannot replace current state | In-memory delayed backend; no store, mounts, or user preference changes |
 

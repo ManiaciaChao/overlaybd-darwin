@@ -5,6 +5,7 @@ struct LibraryView: View {
     @ObservedObject private var language = LanguageSettings.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var showCLIHelp = false
+    @State private var restoreAtLogin = true
     private enum SidebarSelection: Hashable {
         case page(LibraryPage)
         case image(String)
@@ -151,9 +152,19 @@ struct LibraryView: View {
                     check(L10n.tr("FSKit permission"), detail: L10n.tr("Enable OverlayBD in System Settings"), state: !model.permissionChecked ? L10n.tr("Checking") : model.extensionEnabled ? L10n.tr("Enabled") : L10n.tr("Not enabled"), success: model.extensionEnabled)
                 }
                 if let error = model.permissionError { Text(error).foregroundStyle(.orange).textSelection(.enabled) }
+                if model.needsStartupChoice {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(L10n.tr("Startup & Mounting")).font(.headline)
+                            Toggle(L10n.tr("Automatically restore disks after login"), isOn: $restoreAtLogin)
+                            Text(L10n.tr("Mounted images are restored when you open OverlayBD by default. Select this option to also launch OverlayBD at login. Manually unmounted images stay unmounted."))
+                                .font(.callout).foregroundStyle(.secondary)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                    }.disabled(!model.startupSettingsReady)
+                }
                 if model.extensionEnabled {
-                    Button(L10n.tr("Get Started")) { model.page = .images }.buttonStyle(.borderedProminent)
-                        .disabled(!model.serviceReady)
+                    Button(L10n.tr("Get Started")) { model.completeSetup(restoreAtLogin: restoreAtLogin) }.buttonStyle(.borderedProminent)
+                        .disabled(!model.startupSettingsReady)
                     if !model.serviceReady { Text(L10n.tr("The background service is not ready. Refresh from the toolbar or check diagnostics in Settings.")).font(.callout).foregroundStyle(.secondary) }
                 } else {
                     GroupBox {

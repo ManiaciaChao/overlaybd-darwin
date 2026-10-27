@@ -1,4 +1,18 @@
 import Foundation
+import ServiceManagement
+
+@MainActor
+final class TestLoginItem: LoginItemManaging {
+    var status = SMAppService.Status.notRegistered
+    var enabledStatus = SMAppService.Status.enabled
+    var changes: [Bool] = []
+    var shouldFail = false
+    func setEnabled(_ enabled: Bool) throws {
+        changes.append(enabled)
+        if shouldFail { throw CommandFailure(message: "registration failed") }
+        status = enabled ? enabledStatus : .notRegistered
+    }
+}
 
 // Exercise the real model and Backend.mount orchestration without touching login
 // items, FSKit mounts, DiskImages or the user's library.
@@ -71,9 +85,89 @@ final class StartupBackend: Backend {
 
 @main
 struct HostStartupTests {
+    @MainActor static func firstRunSetup() async throws {
+        precondition(LibraryNotes().restoreMounts && !LibraryNotes().startupChoiceCompleted)
+        let home = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("obd-first-run-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: home) }
+        func fresh(_ name: String, login: TestLoginItem) async throws -> LibraryModel {
+            let backend = StartupBackend(home: home.appendingPathComponent(name))
+            try await backend.start()
+            let model = LibraryModel(backend: backend, loginItem: login)
+            try model.loadNotes()
+            model.serviceReady = true; model.extensionEnabled = true
+            precondition(model.needsStartupChoice && login.changes.isEmpty)
+            return model
+        }
+
+        let optOutLogin = TestLoginItem()
+        let optOut = try await fresh("opt-out", login: optOutLogin)
+        optOut.extensionEnabled = false
+        optOut.completeSetup(restoreAtLogin: true)
+        precondition(optOutLogin.changes.isEmpty && optOut.needsStartupChoice, "extension permission is required before completing setup")
+        optOut.extensionEnabled = true
+        optOut.completeSetup(restoreAtLogin: false)
+        precondition(optOut.notes.restoreMounts && !optOut.needsStartupChoice && optOut.page == .images)
+        precondition(optOutLogin.changes.isEmpty, "default setup must not change login items")
+        let reopened = LibraryModel(backend: optOut.backend, loginItem: optOutLogin)
+        try reopened.loadNotes()
+        precondition(reopened.notes.restoreMounts && !reopened.needsStartupChoice)
+
+        let optInLogin = TestLoginItem()
+        let optIn = try await fresh("opt-in", login: optInLogin)
+        optIn.setRestoreMounts(false)
+        optIn.notes.mountedImages = ["stale"]
+        optIn.devices = [try JSONDecoder().decode(DeviceRecord.self, from: Data(#"{"dev_id":1,"image":"a","state":"presented","proxy":"/test","observed":{"device_path":"/dev/test","volumes":[{"device_path":"/dev/testvol","mountpoint":"/test/a"}]}}"#.utf8))]
+        optIn.completeSetup(restoreAtLogin: true)
+        precondition(optIn.notes.restoreMounts && optIn.launchAtLogin && !optIn.needsStartupChoice)
+        precondition(optInLogin.changes == [true] && optIn.notes.mountedImages == ["a"])
+        optIn.completeSetup(restoreAtLogin: true)
+        precondition(optInLogin.changes == [true], "completed setup must not register again")
+        let saved = try JSONDecoder().decode(LibraryNotes.self, from: Data(contentsOf: optIn.notesURL))
+        precondition(saved.restoreMounts && saved.startupChoiceCompleted)
+
+        let pendingLogin = TestLoginItem()
+        pendingLogin.enabledStatus = .requiresApproval
+        let pending = try await fresh("approval", login: pendingLogin)
+        pending.completeSetup(restoreAtLogin: true)
+        precondition(pending.loginStatus == .requiresApproval && pending.page == .settings && !pending.needsStartupChoice)
+
+        let failedLogin = TestLoginItem()
+        failedLogin.shouldFail = true
+        let failed = try await fresh("registration-failure", login: failedLogin)
+        failed.completeSetup(restoreAtLogin: true)
+        precondition(failed.needsStartupChoice && failed.failure?.contains("registration failed") == true)
+        let incomplete = try JSONDecoder().decode(LibraryNotes.self, from: Data(contentsOf: failed.notesURL))
+        precondition(!incomplete.startupChoiceCompleted)
+        failedLogin.shouldFail = false
+        failed.completeSetup(restoreAtLogin: true)
+        precondition(!failed.needsStartupChoice && failed.failure == nil && failedLogin.changes == [true, true])
+
+        let unsavedLogin = TestLoginItem()
+        let unsaved = try await fresh("save-failure", login: unsavedLogin)
+        try FileManager.default.removeItem(at: unsaved.backend.home)
+        unsaved.completeSetup(restoreAtLogin: true)
+        precondition(unsaved.needsStartupChoice && unsaved.failure != nil && unsavedLogin.changes.isEmpty)
+
+        let legacyBackend = StartupBackend(home: home.appendingPathComponent("legacy"))
+        try await legacyBackend.start()
+        try Data(#"{"images":{},"snapshots":{},"restoreMounts":false}"#.utf8)
+            .write(to: legacyBackend.home.appendingPathComponent("library.json"))
+        let legacyLogin = TestLoginItem()
+        let legacy = LibraryModel(backend: legacyBackend, loginItem: legacyLogin)
+        try legacy.loadNotes()
+        legacy.serviceReady = true; legacy.extensionEnabled = true
+        precondition(!legacy.notes.restoreMounts && !legacy.needsStartupChoice)
+        legacy.completeSetup(restoreAtLogin: true)
+        precondition(!legacy.notes.restoreMounts && legacyLogin.changes.isEmpty, "upgrades must preserve existing choices")
+        legacy.setLaunchAtLogin(true)
+        legacy.setLaunchAtLogin(false)
+        precondition(legacyLogin.changes == [true, false] && !legacy.launchAtLogin)
+        print("PASS: new-user restore default, opt-in login startup, once-only setup, approval routing, registration retry, save failure protection, preserved legacy preferences")
+    }
     @MainActor static func main() async throws {
+        try await firstRunSetup()
         let legacy = try JSONDecoder().decode(LibraryNotes.self, from: Data(#"{"images":{},"snapshots":{}}"#.utf8))
-        precondition(!legacy.restoreMounts && !legacy.nobrowse && legacy.mountedImages.isEmpty)
+        precondition(!legacy.restoreMounts && legacy.startupChoiceCompleted && !legacy.nobrowse && legacy.mountedImages.isEmpty)
         let home = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("obd-startup-tests-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: home) }
         let backend = StartupBackend(home: home)

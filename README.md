@@ -51,9 +51,14 @@ apply immediately; image and snapshot names stay unchanged.
   point while keeping layers referenced elsewhere; space is not reclaimed
   immediately.
 
-Settings also provide launch at login, restoration of previously mounted images,
-and hiding mounted volumes in Finder. These options are off by default. Finder
-visibility changes apply on the next mount; hidden volumes remain accessible
+Previously mounted images are restored when the app opens by default for new
+users. During first-time setup, **Automatically restore disks after login** is
+selected by default. Login startup is registered only when you confirm setup;
+uncheck the option to leave it disabled. Existing users keep their saved settings,
+and manually unmounted images are not restored.
+
+Settings also provide hiding mounted volumes in Finder, which is off by default.
+Visibility changes apply on the next mount; hidden volumes remain accessible
 through their mount folders.
 
 Quitting safely unmounts volumes first. If a volume is busy or its state is
