@@ -1,0 +1,93 @@
+name: macOS release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/ci.yml
+    with:
+      skip_release_compile: true
+
+  package:
+    needs: tests
+    runs-on: xcode-27
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          python3 - <<'PY'
+          import os, plistlib
+          from pathlib import Path
+          versions = {plistlib.loads(p.read_bytes())['CFBundleShortVersionString'] for p in [
+              Path('macos/OverlayBDHost/Info.plist'), Path('macos/OverlayBDFSKit/Info.plist')]}
+          if versions != {os.environ['RELEASE_TAG'].removeprefix('v')}:
+              raise SystemExit('Tag must match the host and extension versions')
+          PY
+      - name: Prepare toolchain and dependencies
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          cargo fetch --locked
+      - name: Import signing and notarization credentials
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_FSKIT_PROFILE_BASE64: ${{ secrets.APPLE_FSKIT_PROFILE_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: scripts/ci-setup-signing.sh
+      - name: Build, sign, notarize, and verify DMG
+        run: scripts/package-dmg.sh
+      - name: Checksums
+        run: |
+          cd macos/build
+          shasum -a 256 OverlayBD-*-arm64.dmg > SHA256SUMS
+      - name: Upload verified package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: OverlayBD-${{ github.ref_name }}-arm64
+          path: |
+            macos/build/OverlayBD-*-arm64.dmg
+            macos/build/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+      - name: Create GitHub Release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" macos/build/OverlayBD-*-arm64.dmg macos/build/SHA256SUMS \
+            --verify-tag --draft --title "OverlayBD $RELEASE_TAG" --generate-notes
+      - name: Remove signing material
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/overlaybd-signing.keychain-db" ]]; then
+            security delete-keychain "$RUNNER_TEMP/overlaybd-signing.keychain-db"
+          fi
+          rm -rf "$RUNNER_TEMP/overlaybd-credentials"
+          if [[ -n "${OBD_CI_PROFILE_PATH:-}" ]]; then rm -f "$OBD_CI_PROFILE_PATH"; fi

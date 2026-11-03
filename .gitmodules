@@ -1,0 +1,3 @@
+[submodule "vendor/agentenv"]
+	path = vendor/agentenv
+	url = https://github.com/ManiaciaChao/AgentENV.git

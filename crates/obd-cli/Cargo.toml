@@ -1,0 +1,21 @@
+[package]
+name = "obd-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+obd-runtime.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+obd-protocol.workspace = true
+obd-core-adapter.workspace = true
+clap = { version = "4", features = ["derive", "env"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[bin]]
+name = "obd"
+path = "src/main.rs"

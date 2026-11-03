@@ -1,0 +1,29 @@
+[package]
+name = "obd-core-adapter"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+tokio.workspace = true
+libc.workspace = true
+overlaybd = { path = "../../vendor/agentenv/storage/overlaybd", features = ["full"] }
+
+serde_json.workspace = true
+uuid.workspace = true
+sha2 = "0.10.9"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"] }
+
+tempfile.workspace = true
+
+[dev-dependencies]
+
+# Historical VDO comparison requires an independently built external worker.
+[features]
+experimental-vdo = []
+
+[[test]]
+name = "vdo"
+required-features = ["experimental-vdo"]

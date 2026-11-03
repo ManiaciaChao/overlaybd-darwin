@@ -1,0 +1,64 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      skip_release_compile:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt
+          rustup default 1.98.1
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+      - name: Source checks
+        run: |
+          python3 scripts/audit-public.py
+          python3 scripts/check-localizations.py
+          for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Rust build and tests
+        run: |
+          cargo fetch --locked
+          cargo build --locked --offline --workspace
+          cargo test --locked --offline --workspace
+      - name: FSKit callback tests
+        run: scripts/test-macos.sh
+      - name: Host tests with isolated stores
+        env:
+          OBD_TEST_STORE: '1'
+          OBD_TEST_TOOLS: ${{ github.workspace }}/target/debug
+        run: scripts/test-host.sh
+      - name: Release compilation without distribution credentials
+        if: inputs.skip_release_compile != true
+        env:
+          OBD_BUILD_CONFIGURATION: Release
+        run: |
+          python3 scripts/generate-xcode-project.py
+          xcodebuild -project macos/OverlayBD.xcodeproj -scheme OverlayBDHost \
+            -configuration Release -derivedDataPath macos/build/ci-xcode \
+            CODE_SIGNING_ALLOWED=NO build

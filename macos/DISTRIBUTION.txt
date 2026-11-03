@@ -1,0 +1,30 @@
+OverlayBD Preview
+
+Requirements: Apple Silicon and macOS 26 or later.
+
+Installation
+1. Drag OverlayBD.app to Applications.
+2. Open OverlayBD from Applications.
+3. Follow the app's setup guide to open File System Extensions in System Settings
+   and enable OverlayBDFSKit. If needed, go to General > Login Items & Extensions,
+   switch to By Category, and click the info button next to File System Extensions.
+4. Return to the app and choose Create Image or Import once setup is complete.
+   No initial image is included.
+
+Using images
+Creating an image verifies ownership of the new virtual disk, formats it as APFS,
+and mounts it. For a local import, select an export folder containing image.json
+and all referenced layer files. Importing does not format existing data.
+Online snapshots may not include unsaved changes or data still in application caches.
+Use only data that you can recover or recreate.
+
+Quitting and updating
+Quitting the app safely unmounts its volumes first. If files are in use, close them
+and try again. Before updating, quit the app and confirm that all volumes are
+unmounted, then replace the application.
+Rust and Xcode are not required. The app starts its background service automatically.
+
+Data and uninstalling
+The default image store is ~/Library/Application Support/OverlayBD/store.
+You can move the entire store in Settings. Deleting the app does not delete image
+data. Do not delete the store while images are mounted or recovery is pending.
