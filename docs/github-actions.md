@@ -17,6 +17,13 @@ the standard runner's advertised disk space. Credentials are not available to th
 Existing Rust formatting differences are not a CI gate; formatting cleanup can
 be reviewed separately.
 
+Pushes and pull requests that change only root `README*` files, `docs/**`, or
+`Casks/**` skip `macOS CI`. A change to any other path, including source code,
+build scripts, dependencies, or workflows, runs the full checks. Manual dispatch
+and release calls to the reusable workflow always run the checks regardless of
+the changed paths. No commit-message skip marker is needed for documentation or
+cask-only updates.
+
 ## One-time release setup
 
 In Settings → Environments create `release`. Under deployment branches and tags,

@@ -3,7 +3,15 @@ name: macOS CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README*'
+      - 'docs/**'
+      - 'Casks/**'
   pull_request:
+    paths-ignore:
+      - 'README*'
+      - 'docs/**'
+      - 'Casks/**'
   workflow_dispatch:
   workflow_call:
     inputs:
