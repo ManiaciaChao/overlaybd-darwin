@@ -14,7 +14,18 @@ use data you can recover or recreate.
 
 ## Install and get started
 
-1. Drag OverlayBD from the DMG to Applications, then open it from there.
+Download the DMG from [GitHub Releases](https://github.com/ManiaciaChao/overlaybd-darwin/releases),
+or install the signed app with Homebrew:
+
+```sh
+brew tap ManiaciaChao/overlaybd-darwin https://github.com/ManiaciaChao/overlaybd-darwin.git
+brew install --cask maniaciachao/overlaybd-darwin/overlaybd
+```
+
+See [Homebrew installation](docs/homebrew.md) for upgrades and uninstallation.
+
+1. If using the DMG, drag OverlayBD to Applications. Open the installed app from
+   Applications after either installation method.
 2. Follow the setup guide to enable OverlayBDFSKit in System Settings:
    General → Login Items & Extensions → By Category → File System Extensions.
 3. Once setup is complete, choose **Create Image** or **Import**. No initial image
