@@ -519,7 +519,7 @@ class Backend {
         guard devices.isEmpty else { throw CommandFailure(message: L10n.tr("Devices or unfinished operations remain. The background service will keep running.")) }
         if let daemon, daemon.isRunning {
             daemon.interrupt()
-            for _ in 0..<100 {
+            for _ in 0..<300 {
                 if !daemon.isRunning { try? log?.close(); self.daemon = nil; return }
                 try await Task.sleep(for: .milliseconds(100))
             }
