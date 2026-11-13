@@ -586,6 +586,9 @@ pub async fn execute(store: Arc<Mutex<Store>>, op: Operation) -> Result<Value> {
                     "/sbin/mount",
                     &[
                         "-w", // Control receipts need directory writes; data access is enforced by lease + engine.
+                        // The proxy is an internal staging filesystem; keep it out of Finder and the Desktop.
+                        "-o",
+                        "nobrowse",
                         "-F",
                         "-t",
                         "obdraw",
