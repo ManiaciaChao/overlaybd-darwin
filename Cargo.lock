@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "obd-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1236,7 +1236,7 @@ dependencies = [
 
 [[package]]
 name = "obd-core-adapter"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "libc",
@@ -1252,7 +1252,7 @@ dependencies = [
 
 [[package]]
 name = "obd-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "libc",
@@ -1268,7 +1268,7 @@ dependencies = [
 
 [[package]]
 name = "obd-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "obd-core-adapter",
@@ -1281,7 +1281,7 @@ dependencies = [
 
 [[package]]
 name = "obd-runtime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "libc",
@@ -1295,7 +1295,7 @@ dependencies = [
 
 [[package]]
 name = "obd-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "libc",
